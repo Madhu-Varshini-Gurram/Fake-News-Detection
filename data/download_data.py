@@ -2,9 +2,9 @@ import pandas as pd
 import requests
 import os
 
-DATA_URL = "https://raw.githubusercontent.com/raj1603chdry/Fake-News-Detection-System/master/datasets/train.csv"
+DATA_URL = "https://raw.githubusercontent.com/PhilChodrow/PIC16b/master/datasets/fake_news_train.csv"
 DATA_DIR = "data"
-DATA_FILE = os.path.join(DATA_DIR, "fake_news.csv")
+DATA_FILE = os.path.join(DATA_DIR, "train.csv")
 
 def download_data():
     if not os.path.exists(DATA_DIR):

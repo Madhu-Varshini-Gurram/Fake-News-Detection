@@ -39,12 +39,11 @@ def preprocess_df(df, text_column='text'):
     Preprocess the text column in a dataframe.
     """
     df[text_column] = df[text_column].fillna('')
-    # Merge title and text if title exists
-    if 'title' in df.columns:
-        df['combined'] = df['title'].fillna('') + ' ' + df[text_column]
-    else:
-        df['combined'] = df[text_column]
+    # Merge title and text if they exist
+    author_str = df['author'].fillna('') if 'author' in df.columns else ''
+    title_str = df['title'].fillna('') if 'title' in df.columns else ''
+    df['combined'] = title_str + ' ' + author_str + ' ' + df[text_column]
         
-    print("Beginning text cleaning (this may take a while for large datasets)...")
+    print(f"Beginning text cleaning of {len(df)} rows (this may take 2-3 minutes)...")
     df['cleaned'] = df['combined'].apply(clean_text)
     return df

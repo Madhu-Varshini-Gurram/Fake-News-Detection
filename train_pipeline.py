@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 import os
 
 # Define file paths
-DATA_FILE = "data/fake_news.csv"
+DATA_FILE = "data/train.csv"
 
 def train_pipeline():
     if not os.path.exists(DATA_FILE):
@@ -16,16 +16,17 @@ def train_pipeline():
     print(f"Loading data from {DATA_FILE}...")
     df = pd.read_csv(DATA_FILE)
     
-    # Basic inspection (Dataset labels: 0 for reliable, 1 for fake)
+    # Basic inspection
     print(f"Dataset has {len(df)} entries.")
+    df = df.dropna(subset=['fake'])
     
     # Preprocess
     print("Pre-processing text...")
     df = preprocess_df(df, text_column='text')
     
-    # Select features (label for this dataset is "label")
+    # Select features (label for this dataset is "fake": 1=Fake, 0=Real)
     X = df['cleaned']
-    y = df['label'] # Assuming 0 for real, 1 for fake
+    y = df['fake']
     
     # Split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
