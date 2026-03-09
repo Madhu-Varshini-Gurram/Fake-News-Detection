@@ -9,8 +9,9 @@ A robust Natural Language Processing (NLP) and Machine Learning project designed
 - **Advanced Text Preprocessing**: Automated cleaning including lowercase conversion, punctuation removal, tokenization, stemming (using Porter Stemmer), and stopword filtering.
 - **High-Performance Classifier**: Leverages the **PassiveAggressiveClassifier**, a state-of-the-art algorithm for online-learning scenarios like social media feed analysis.
 - **TF-IDF Vectorization**: Uses Term Frequency-Inverse Document Frequency (TF-IDF) with bigram analysis to capture contextual patterns in fake news.
-- **Interactive UI**: A sleek, user-friendly **Streamlit** dashboard for real-time fact-checking.
-- **Explainable Results**: Features a detailed view of the cleaned tokens to see how the model "interprets" the input.
+- **Multimodal Support**: Support for Text, PDF, JPG, JPEG, and PNG files with automated content extraction.
+- **Spam & Fake News Classification**: Real-time classification into **SPAM** or **NOT SPAM** categories.
+- **Explainable Results**: Features a detailed view of results with a professional animation and progress tracking.
 
 ---
 
@@ -21,7 +22,28 @@ A robust Natural Language Processing (NLP) and Machine Learning project designed
 - **Machine Learning**: Scikit-learn, Joblib
 - **Data Manipulation**: Pandas, NumPy
 - **Frontend**: Streamlit
+- **Multimodal**: PyPDF2 (PDF), Pytesseract (OCR for Images)
 - **Visualization**: Matplotlib, Seaborn
+
+---
+
+## 🖼️ Multimodal Input Setup (OCR)
+
+To process images (JPG/JPEG/PNG), you need to install the Tesseract OCR engine on your system:
+
+### 1. Install Tesseract Engine
+- **Windows**: Download the installer from [Tesseract for Windows](https://github.com/UB-Mannheim/tesseract/wiki).
+- **Linux**: `sudo apt install tesseract-ocr`
+- **macOS**: `brew install tesseract`
+
+### 2. Configure in App
+1. Open the **Veritas AI** application.
+2. Expand the **Sidebar** (`>` arrow at top left).
+3. Under **⚙️ Engine Setup**, enter the path to your `tesseract.exe`.
+   - Default Windows Path: `C:\Program Files\Tesseract-OCR\tesseract.exe`
+4. Click **Apply Path**.
+
+Now, when you upload any image or PDF, Veritas AI will automatically extract the text and classify it as **SPAM** or **NOT SPAM**.
 
 ---
 

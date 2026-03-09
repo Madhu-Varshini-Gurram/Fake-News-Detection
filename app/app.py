@@ -19,7 +19,7 @@ from model import FakeNewsModel
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Veritas AI",
+    page_title="Veritas AI - Content Integrity",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -28,6 +28,8 @@ st.set_page_config(
 # --- SESSION STATE FOR HISTORY ---
 if 'history' not in st.session_state:
     st.session_state.history = []
+if 'news_input' not in st.session_state:
+    st.session_state.news_input = ""
 
 # --- CSS STYLING ---
 st.markdown("""
@@ -105,7 +107,25 @@ st.markdown("""
 # --- SIDEBAR: PAST ACTIVITY ---
 with st.sidebar:
     st.markdown("# 🛡️ Veritas AI")
-    st.markdown("### Past Activity")
+    
+    st.markdown("### ⚙️ Engine Setup")
+    tesseract_path = st.text_input(
+        "Tesseract EXE Path", 
+        value=st.session_state.get('tesseract_path', r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
+        help="Paste the path to your tesseract.exe here. Usually in C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+    )
+    st.session_state.tesseract_path = tesseract_path
+    
+    if st.button("Apply Path"):
+        if os.path.exists(tesseract_path):
+            if pytesseract:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                st.success("OCR Path Applied!")
+        else:
+            st.error("Invalid Path! File not found.")
+
+    st.markdown("---")
+    st.markdown("### 📜 Past Activity")
     if not st.session_state.history:
         st.caption("No recent activity found.")
     else:
@@ -114,7 +134,7 @@ with st.sidebar:
             <div class="history-card">
                 <b>{item['label']}</b><br>
                 <small>{item['time']}</small><br>
-                <span style="font-size: 11px;">{item['snippet'][:40]}...</span>
+                <p style="font-size: 11px; margin: 0; color: #4b5563;">{item['snippet'][:40]}...</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -128,44 +148,98 @@ col_left, col_mid, col_right = st.columns([1, 4, 1])
 with col_mid:
     st.markdown('<div class="app-header">', unsafe_allow_html=True)
     st.markdown('<h1 class="main-title">Veritas AI</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Secure, Enterprise-Grade Content Verification</p>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Secure Content Verification: Spam & Fake News Detection</p>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Input Box
+    # Analysis Workspace
     news_input = st.text_area("Analysis Workspace", 
+                             value=st.session_state.news_input,
                              placeholder="Paste news content here for instant analysis...", 
                              height=300, 
-                             label_visibility="collapsed")
+                             label_visibility="collapsed",
+                             key="main_workspace")
+    
+    # Update session state with current workspace value to prevent loss
+    st.session_state.news_input = news_input
 
     # File Upload Support
-    uploaded_file = st.file_uploader("Multimodal Input (PDF, WebP, JPEG, PNG, TXT)", 
+    uploaded_file = st.file_uploader("Upload Content (PDF, JPG, JPEG, PNG, TXT)", 
                                     type=['txt', 'pdf', 'jpg', 'jpeg', 'png'])
     
     extracted_text = ""
-    if uploaded_file:
-        file_type = uploaded_file.name.split('.')[-1].lower()
-        if file_type == 'txt':
-            extracted_text = uploaded_file.read().decode("utf-8")
-        elif file_type == 'pdf':
-            pdf_reader = PyPDF2.PdfReader(uploaded_file)
-            for page in pdf_reader.pages:
-                extracted_text += page.extract_text() or ""
-        elif file_type in ['jpg', 'jpeg', 'png']:
-            img = Image.open(uploaded_file)
-            if pytesseract:
-                # Note: Tesseract needs engine installed on system. If not, this skips.
+    if uploaded_file and st.session_state.get('last_processed_file') != uploaded_file.name:
+        with st.status(f"Processing {uploaded_file.name}...", expanded=False) as status:
+            file_type = uploaded_file.name.split('.')[-1].lower()
+            if file_type == 'txt':
+                extracted_text = uploaded_file.read().decode("utf-8")
+                status.update(label="Text extracted successfully!", state="complete")
+            elif file_type == 'pdf':
                 try:
-                    extracted_text = pytesseract.image_to_string(img)
-                except Exception:
-                    st.warning("OCR Engine not found. Using metadata/display only.")
-            else:
-                st.warning("OCR (Pytesseract) is not installed. Analyzing metadata only.")
+                    pdf_reader = PyPDF2.PdfReader(uploaded_file)
+                    text_parts = []
+                    for page in pdf_reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_parts.append(page_text)
+                    extracted_text = "\n".join(text_parts)
+                    if not extracted_text.strip():
+                        st.warning("No text found in PDF. It might be a scanned document.")
+                        status.update(label="PDF parsed, but no text found.", state="error")
+                    else:
+                        status.update(label="PDF text extracted!", state="complete")
+                except Exception as e:
+                    st.error(f"Error reading PDF: {e}")
+                    status.update(label="PDF Extraction Failed", state="error")
+            elif file_type in ['jpg', 'jpeg', 'png']:
+                img = Image.open(uploaded_file)
+                st.image(img, caption="Uploaded Image Preview", use_column_width=True)
+                if pytesseract:
+                    try:
+                        # Priority 1: User Path from Sidebar
+                        if st.session_state.get('tesseract_path') and os.path.exists(st.session_state.tesseract_path):
+                            pytesseract.pytesseract.tesseract_cmd = st.session_state.tesseract_path
+                        # Priority 2: Standard Auto-locate
+                        elif os.name == 'nt' and not hasattr(pytesseract.pytesseract, 'tesseract_cmd'):
+                            possible_paths = [
+                                r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+                                r'C:\Users\\' + os.getlogin() + r'\AppData\Local\Tesseract-OCR\tesseract.exe',
+                                r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe'
+                            ]
+                            for p in possible_paths:
+                                if os.path.exists(p):
+                                    pytesseract.pytesseract.tesseract_cmd = p
+                                    break
+                        
+                        extracted_text = pytesseract.image_to_string(img)
+                        if not extracted_text.strip():
+                            st.warning("OCR returned no text. Try a clearer image.")
+                            status.update(label="OCR completed, no text found.", state="error")
+                        else:
+                            status.update(label="Image text extracted via OCR!", state="complete")
+                    except Exception as e:
+                        st.error(f"OCR Failure: {e}")
+                        st.info("Check the Tesseract path in the sidebar. [Download Info](https://github.com/UB-Mannheim/tesseract/wiki)")
+                        status.update(label="OCR Failed - Check Sidebar", state="error")
+                else:
+                    st.warning("OCR (pytesseract) library not found.")
+                    status.update(label="OCR Unconfigured", state="error")
         
         if extracted_text:
-            news_input = extracted_text
+            st.session_state.news_input = extracted_text
+            st.session_state.last_processed_file = uploaded_file.name
+            st.session_state.auto_analyze = True # Trigger analysis on rerun
+            st.success("Content extracted! Initiating analysis...")
+            st.rerun()
 
-    # Analyze Button
-    if st.button("Analyze Content", use_container_width=True):
+    # Automatic analysis trigger from file upload
+    if st.session_state.get('auto_analyze', False):
+        st.session_state.auto_analyze = False # Reset
+        do_analysis = True
+    else:
+        do_analysis = st.button("Analyze Content", use_container_width=True)
+
+    # Analyze Execution
+    if do_analysis:
         if not news_input.strip():
             st.error("Engine requires content to proceed. Please provide text or a file.")
         else:
@@ -188,7 +262,7 @@ with col_mid:
                 prediction = model.predict(cleaned)
                 
                 # Update Session State
-                label = "NOT A FAKE NEWS" if prediction == "REAL" else "FAKE NEWS"
+                label = "NOT SPAM" if prediction == "REAL" else "SPAM"
                 st.session_state.history.append({
                     'label': label,
                     'time': datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -202,7 +276,7 @@ with col_mid:
                     <div class="result-alert fake-alert">
                         <p style="font-size: 1.1rem; text-transform: uppercase;">Confidence Engine Results</p>
                         <h2 class="result-text">{label}</h2>
-                        <p style="margin-top: 10px;">Linguistic patterns strongly align with misinformation traits.</p>
+                        <p style="margin-top: 10px;">Linguistic markers suggest this content may be <b>Spam or Fake News</b>.</p>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
@@ -210,7 +284,7 @@ with col_mid:
                     <div class="result-alert real-alert">
                         <p style="font-size: 1.1rem; text-transform: uppercase;">Confidence Engine Results</p>
                         <h2 class="result-text">{label}</h2>
-                        <p style="margin-top: 10px;">This content matches verified/reliable reporting patterns.</p>
+                        <p style="margin-top: 10px;">Linguistic markers suggest this content is <b>Legitimate & Reliable</b>.</p>
                     </div>
                     """, unsafe_allow_html=True)
             else:
