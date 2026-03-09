@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Data and Models
+data/*.csv
+models/*.joblib
+models/*.pkl
+
+# VS Code
+.vscode/
+.DS_Store
