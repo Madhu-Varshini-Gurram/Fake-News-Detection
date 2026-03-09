@@ -9,8 +9,8 @@ class FakeNewsModel:
     def __init__(self, model_path="models/model.joblib", tfidf_path="models/tfidf.joblib"):
         self.model_path = model_path
         self.tfidf_path = tfidf_path
-        self.tfidf = TfidfVectorizer(max_df=0.7, ngram_range=(1,2), max_features=5000)
-        self.clf = PassiveAggressiveClassifier(max_iter=1000, random_state=42)
+        self.tfidf = TfidfVectorizer(max_df=0.75, min_df=2, ngram_range=(1,2), max_features=10000)
+        self.clf = PassiveAggressiveClassifier(max_iter=2000, C=1.0, random_state=42)
     
     def train(self, X_train, X_test, y_train, y_test):
         """
