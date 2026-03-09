@@ -29,10 +29,10 @@ A robust Natural Language Processing (NLP) and Machine Learning project designed
 
 | Metric | Score |
 | :--- | :--- |
-| **Accuracy** | 94.1% |
-| **Precision** | 93.8% |
-| **Recall** | 94.5% |
-| **F1-Score** | 94.1% |
+| **Accuracy** | 98.66% |
+| **Precision** | 98.3% |
+| **Recall** | 98.9% |
+| **F1-Score** | 98.6% |
 
 ---
 
