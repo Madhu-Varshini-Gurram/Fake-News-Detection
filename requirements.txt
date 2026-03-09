@@ -6,3 +6,6 @@ joblib
 requests
 matplotlib
 seaborn
+PyPDF2
+Pillow
+pytesseract

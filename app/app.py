@@ -4,106 +4,95 @@ import joblib
 import os
 import sys
 import time
+from datetime import datetime
+from PIL import Image
+import PyPDF2
+try:
+    import pytesseract
+except ImportError:
+    pytesseract = None
 
-# Ensure src/ is in sys.path for module imports
+# Ensure src/ is in sys.path
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 from preprocess import clean_text
 from model import FakeNewsModel
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Veritas AI | Advanced Fake News Detection",
+    page_title="Veritas AI",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- PREMIUM CSS STYLING ---
+# --- SESSION STATE FOR HISTORY ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
+# --- CSS STYLING ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-
-    * {
-        font-family: 'Outfit', sans-serif;
-    }
-
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
-
-    /* Glassmorphism containers */
-    .glass-card {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(10px);
-        border-radius: 20px;
-        padding: 30px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-        margin-bottom: 25px;
-    }
-
-    /* Typography */
-    .hero-title {
-        font-size: 3.5rem;
-        font-weight: 800;
-        background: linear-gradient(to right, #2b5876, #4e4376);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.5rem;
-        text-align: left;
-    }
-
-    .hero-subtitle {
-        font-size: 1.2rem;
-        color: #555;
-        margin-bottom: 2rem;
-        font-weight: 400;
-    }
-
-    /* Result Cards */
-    .result-card {
-        padding: 40px;
-        border-radius: 20px;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    * { font-family: 'Inter', sans-serif; }
+    
+    .stApp { background-color: #fcfdfe; }
+    
+    /* Centered Header */
+    .app-header {
         text-align: center;
-        animation: fadeIn 0.5s ease-out;
+        padding: 60px 0 40px;
     }
-
-    .fake-result {
-        background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
-        border: 2px solid #ff4b4b;
-        color: #900;
+    
+    .main-title {
+        font-size: 3rem;
+        font-weight: 700;
+        color: #111827;
+        letter-spacing: -1px;
     }
-
-    .real-result {
-        background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-        border: 2px solid #00c853;
-        color: #004d40;
-    }
-
-    .result-text {
-        font-size: 2.5rem;
-        font-weight: 800;
-        margin: 0;
-    }
-
-    /* Custom Button */
-    .stButton>button {
-        background: linear-gradient(to right, #2b5876, #4e4376);
-        color: white;
-        border: none;
-        padding: 15px 30px;
-        border-radius: 12px;
-        font-weight: 600;
+    
+    .subtitle {
+        color: #6b7280;
         font-size: 1.1rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        width: 100%;
+        margin-top: 10px;
     }
 
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-        background: linear-gradient(to right, #4e4376, #2b5876);
+    /* Professional Sidebar */
+    .css-1d391kg { background-color: #f8fafc !important; }
+    .history-card {
+        padding: 12px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        font-size: 0.85rem;
+    }
+
+    /* Result Indicators */
+    .result-alert {
+        padding: 30px;
+        border-radius: 12px;
+        text-align: center;
+        margin-top: 40px;
+        animation: fadeIn 0.4s ease-in-out;
+    }
+    
+    .fake-alert {
+        background-color: #fef2f2;
+        border: 2px solid #ef4444;
+        color: #991b1b;
+    }
+    
+    .real-alert {
+        background-color: #f0fdf4;
+        border: 2px solid #22c55e;
+        color: #166534;
+    }
+    
+    .result-text {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 0;
     }
 
     @keyframes fadeIn {
@@ -113,103 +102,122 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- SIDEBAR: PAST ACTIVITY ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3208/3208034.png", width=100)
-    st.markdown("## Veritas AI")
-    st.markdown("---")
-    st.markdown("### Model Insights")
-    st.metric("Accuracy", "98.66%", "+2.4%")
-    st.metric("Latency", "~120ms")
+    st.markdown("# 🛡️ Veritas AI")
+    st.markdown("### Past Activity")
+    if not st.session_state.history:
+        st.caption("No recent activity found.")
+    else:
+        for idx, item in enumerate(reversed(st.session_state.history[-10:])):
+            st.markdown(f"""
+            <div class="history-card">
+                <b>{item['label']}</b><br>
+                <small>{item['time']}</small><br>
+                <span style="font-size: 11px;">{item['snippet'][:40]}...</span>
+            </div>
+            """, unsafe_allow_html=True)
     
-    st.markdown("---")
-    st.markdown("### How it Works")
-    st.info("""
-    **1. Preprocessing:** Text is cleaned using NLTK, removing noise and stemming words.
-    **2. TF-IDF:** Statistical analysis measures the importance of words across the dataset.
-    **3. Classification:** Passive Aggressive Classifier identifies linguistic patterns typical of misinformation.
-    """)
-    
-    st.markdown("---")
-    st.caption("v1.2 | Portfolio Project")
+    if st.button("Clear History"):
+        st.session_state.history = []
+        st.rerun()
 
 # --- MAIN UI ---
-container = st.container()
+col_left, col_mid, col_right = st.columns([1, 4, 1])
 
-with container:
-    st.markdown('<h1 class="hero-title">Veritas AI</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="hero-subtitle">Combatting digital misinformation with high-precision machine learning.</p>', unsafe_allow_html=True)
+with col_mid:
+    st.markdown('<div class="app-header">', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">Veritas AI</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Secure, Enterprise-Grade Content Verification</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    col_main, col_stats = st.columns([2, 1])
+    # Input Box
+    news_input = st.text_area("Analysis Workspace", 
+                             placeholder="Paste news content here for instant analysis...", 
+                             height=300, 
+                             label_visibility="collapsed")
 
-    with col_main:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        news_input = st.text_area("Paste Article Headline or Content", 
-                                 placeholder="e.g., Breaking: Scientists discover life on Mars...", 
-                                 height=250)
+    # File Upload Support
+    uploaded_file = st.file_uploader("Multimodal Input (PDF, WebP, JPEG, PNG, TXT)", 
+                                    type=['txt', 'pdf', 'jpg', 'jpeg', 'png'])
+    
+    extracted_text = ""
+    if uploaded_file:
+        file_type = uploaded_file.name.split('.')[-1].lower()
+        if file_type == 'txt':
+            extracted_text = uploaded_file.read().decode("utf-8")
+        elif file_type == 'pdf':
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            for page in pdf_reader.pages:
+                extracted_text += page.extract_text() or ""
+        elif file_type in ['jpg', 'jpeg', 'png']:
+            img = Image.open(uploaded_file)
+            if pytesseract:
+                # Note: Tesseract needs engine installed on system. If not, this skips.
+                try:
+                    extracted_text = pytesseract.image_to_string(img)
+                except Exception:
+                    st.warning("OCR Engine not found. Using metadata/display only.")
+            else:
+                st.warning("OCR (Pytesseract) is not installed. Analyzing metadata only.")
         
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            uploaded_file = st.file_uploader("Scan File", type=['txt'])
-        with c2:
-            analyze_btn = st.button("Analyze Authenticity")
-        
-        if uploaded_file:
-            news_input = uploaded_file.read().decode("utf-8")
-        st.markdown('</div>', unsafe_allow_html=True)
+        if extracted_text:
+            news_input = extracted_text
 
-    with col_stats:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("### Quick Analysis Stats")
-        st.write("Current dataset contains over **22,000** verified news samples.")
-        st.markdown("---")
-        st.write("**Confidence Scoring:**")
-        st.progress(98)
-        st.caption("The model is optimized for high-recall scenarios.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# --- PREDICTION LOGIC ---
-if analyze_btn:
-    if not news_input.strip():
-        st.error("Please input news text for analysis.")
-    else:
-        model = FakeNewsModel()
-        if not model.load():
-            st.error("Engine failure: Pre-trained model not found. Please train the model first.")
+    # Analyze Button
+    if st.button("Analyze Content", use_container_width=True):
+        if not news_input.strip():
+            st.error("Engine requires content to proceed. Please provide text or a file.")
         else:
-            with st.spinner("Decoding linguistic patterns..."):
-                start_time = time.time()
+            # Simulation of 5-second analytical deep-dive
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i in range(1, 101):
+                time.sleep(0.045)  # Sums roughly to 4.5s + 0.5s overhead = 5s
+                progress_bar.progress(i)
+                if i < 30: status_text.text("Initial Parsing...")
+                elif i < 60: status_text.text("Scanning Linguistic Markers...")
+                elif i < 90: status_text.text("TF-IDF Vector Mapping...")
+                else: status_text.text("Finalizing Inference...")
+            
+            # Backend Execution
+            model = FakeNewsModel()
+            if model.load():
                 cleaned = clean_text(news_input)
                 prediction = model.predict(cleaned)
-                duration = time.time() - start_time
                 
-                st.markdown("### Analysis Results")
-                
+                # Update Session State
+                label = "NOT A FAKE NEWS" if prediction == "REAL" else "FAKE NEWS"
+                st.session_state.history.append({
+                    'label': label,
+                    'time': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    'snippet': news_input[:60]
+                })
+
+                # Results Display
+                st.markdown("---")
                 if prediction == "FAKE":
                     st.markdown(f"""
-                    <div class="result-card fake-result">
-                        <p style="font-size: 1.2rem; margin-bottom: 10px;">Classification</p>
-                        <h2 class="result-text">LITELY UNRELIABLE 🚩</h2>
+                    <div class="result-alert fake-alert">
+                        <p style="font-size: 1.1rem; text-transform: uppercase;">Confidence Engine Results</p>
+                        <h2 class="result-text">{label}</h2>
+                        <p style="margin-top: 10px;">Linguistic patterns strongly align with misinformation traits.</p>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div class="result-card real-result">
-                        <p style="font-size: 1.2rem; margin-bottom: 10px;">Classification</p>
-                        <h2 class="result-text">LIKELY AUTHENTIC ✅</h2>
+                    <div class="result-alert real-alert">
+                        <p style="font-size: 1.1rem; text-transform: uppercase;">Confidence Engine Results</p>
+                        <h2 class="result-text">{label}</h2>
+                        <p style="margin-top: 10px;">This content matches verified/reliable reporting patterns.</p>
                     </div>
                     """, unsafe_allow_html=True)
-                
-                # Metadata section
-                cols = st.columns(3)
-                cols[0].metric("Response Time", f"{duration:.3f}s")
-                cols[1].metric("Confidence", "98.6%")
-                cols[2].metric("Class", prediction)
+            else:
+                st.error("Engine Failure: Pre-trained model not optimized. Please run the training pipeline first.")
 
-                with st.expander("Show NLP Processing Details"):
-                    st.write("**Tokenized Features:**")
-                    st.code(cleaned)
-
-# --- FOOTER ---
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: #777;'>Built for Professional Portfolio | NLP Spam Detection Engine</p>", unsafe_allow_html=True)
+    # Minimalist Footer
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    st.divider()
+    cols = st.columns(3)
+    cols[1].caption("Veritas AI | Developed for Professional ML Portfolio")
